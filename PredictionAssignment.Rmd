@@ -1,0 +1,89 @@
+Prediction Assignment Writeup
+=============================
+
+We Load the Caret Library, and set seed.  
+
+```{r warning=FALSE}
+library(caret); library(MASS)
+set.seed(12345)
+```
+
+### Reading Data
+
+Now we read input and test data:  
+
+```{r}
+setwd("C:/Misc/R_work/data")
+pmlRaw <- read.csv("pml-training.csv")
+Test <- read.csv("pml-testing.csv")
+```
+
+### Feature selection
+
+A small random sample of input data set was manually examined for feature selection.
+Now, picking only the features of interest, discarding the rest.  
+```{r}
+cols<-names(pmlRaw) %in% c("user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","num_window", "roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt", "gyrox_belt_x", "gyrox_belt_y", "gyrox_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_belt_z", "roll_arm", "pitch_arm", "yaw_arm", "total_acel_arm", "gyros_arm_x", "gyros_arm_y", "gyros_arm_z", "accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x", "magnet_arm_y", "magnet_arm_z", "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell", "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accell_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z", "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z")
+
+pmlSlim <- pmlRaw[,cols]
+pmlSlim$classe <- pmlRaw$classe
+```
+
+### Partitioning data into Training set and Test set
+
+We set aside 70% of randomly sampled data for training set, and remaining 30% data for use as Test set.  
+
+```{r}
+inTrain <- createDataPartition(y=pmlSlim$classe, p=0.7, list=FALSE)
+pmlTrain <- pmlSlim[inTrain,]
+pmlTest <- pmlSlim[-inTrain,]
+```
+
+### Handling missing values
+
+Here we look for NAs to see if we need to imputed dataset using k-nearest neighbors method.
+```{r}
+table(complete.cases(pmlSlim))
+```
+
+As we can see, our selected features have no NAs, so data imputation is not required.
+
+### Training prediction model
+
+We will now train prediction model using Linear Discriminant Analysis method.
+
+```{r warning=FALSE}
+modlda <- train(classe ~ ., method="lda", data=pmlSlim)
+modlda
+```
+
+We now validate our model by looking at its accuracy in classifying Test Set that we set aside.
+```{r}
+pred <- as.vector(predict(modlda,pmlTest))
+confusionMatrix(pred,pmlTest$classe)
+```
+
+Looking at the Confusion Matrix, we note that Accuracy is >85%, and both sensitifity and specificity are >90%.
+
+We now use our model to classify Test data.
+
+```{r}
+predTest <- as.vector(predict(modlda,Test))
+results <- data.frame(cbind(Test[,160],predTest))
+colnames(results) <- c("problem_id","classe")
+results
+```
+
+We now write our results to output files using the script provided with the assignment instructions:
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predTest)
+```
